@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Urban Taxi Demand Dashboard — NYC TLC Analysis</title>
+    <meta name="description" content="Interactive dashboard analysing NYC Yellow and Green taxi demand patterns using TLC trip records.">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        /* ── Reset & Vars ─────────────────────────────────────────────── */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --bg: #0b0f19;
+            --surface: #111827;
+            --surface2: #1a2235;
+            --border: #1e293b;
+            --accent: #6366f1;
+            --accent-glow: rgba(99, 102, 241, 0.25);
+            --green: #22c55e;
+            --amber: #f59e0b;
+            --rose: #f43f5e;
+            --sky: #38bdf8;
+            --text: #f1f5f9;
+            --text-muted: #94a3b8;
+            --radius: 16px;
+        }
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* ── Header ───────────────────────────────────────────────────── */
+        .header {
+            background: linear-gradient(135deg, #1e1b4b 0%, #0f172a 50%, #0c1524 100%);
+            border-bottom: 1px solid var(--border);
+            padding: 28px 40px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(20px);
+        }
+        .header-inner {
+            max-width: 1440px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+        .header h1 {
+            font-size: 22px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #818cf8, #6366f1, #38bdf8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
+        }
+        .header .subtitle {
+            font-size: 13px;
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+        .badge {
+            background: var(--accent);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .data-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: var(--green);
+        }
+        .data-status::before {
+            content: '';
+            width: 7px;
+            height: 7px;
+            background: var(--green);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        #data-source-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            background: var(--surface2);
+            padding: 6px 14px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        /* ── Main ─────────────────────────────────────────────────────── */
+        .main {
+            max-width: 1440px;
+            margin: 0 auto;
+            padding: 28px 40px 60px;
+        }
+
+        /* ── KPI Cards ────────────────────────────────────────────────── */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+            margin-bottom: 28px;
+        }
+        .kpi-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 22px 24px;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .kpi-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+        }
+        .kpi-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 3px;
+        }
+        .kpi-card:nth-child(1)::before { background: linear-gradient(90deg, #6366f1, #818cf8); }
+        .kpi-card:nth-child(2)::before { background: linear-gradient(90deg, #22c55e, #4ade80); }
+        .kpi-card:nth-child(3)::before { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+        .kpi-card:nth-child(4)::before { background: linear-gradient(90deg, #38bdf8, #7dd3fc); }
+        .kpi-card:nth-child(5)::before { background: linear-gradient(90deg, #f43f5e, #fb7185); }
+        .kpi-card:nth-child(6)::before { background: linear-gradient(90deg, #8b5cf6, #a78bfa); }
+        .kpi-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+        .kpi-value {
+            font-size: 28px;
+            font-weight: 800;
+            letter-spacing: -1px;
+            line-height: 1.1;
+        }
+        .kpi-sub {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 6px;
+        }
+
+        /* ── Chart Grid ───────────────────────────────────────────────── */
+        .chart-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 28px;
+        }
+        .chart-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 24px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .chart-card:hover {
+            box-shadow: 0 8px 30px rgba(0,0,0,0.25);
+        }
+        .chart-card.full-width {
+            grid-column: 1 / -1;
+        }
+        .chart-card h3 {
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 4px;
+            color: var(--text);
+        }
+        .chart-card .chart-subtitle {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+        }
+        .chart-wrapper {
+            position: relative;
+            width: 100%;
+            height: 300px;
+        }
+        .chart-wrapper.tall {
+            height: 360px;
+        }
+        .chart-card canvas {
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        /* ── Table ────────────────────────────────────────────────────── */
+        .table-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 24px;
+            overflow-x: auto;
+        }
+        .table-card h3 {
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        th {
+            text-align: left;
+            padding: 10px 14px;
+            background: var(--surface2);
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid var(--border);
+        }
+        td {
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border);
+            color: var(--text);
+        }
+        tr:hover td {
+            background: rgba(99, 102, 241, 0.05);
+        }
+        .zone-rank {
+            width: 28px;
+            height: 28px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--accent);
+            color: white;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 12px;
+        }
+
+        /* ── CSV Upload Section ────────────────────────────────────────── */
+        .upload-section {
+            background: var(--surface2);
+            border: 2px dashed var(--border);
+            border-radius: var(--radius);
+            padding: 32px;
+            text-align: center;
+            margin-bottom: 28px;
+            transition: border-color 0.3s, background 0.3s;
+        }
+        .upload-section:hover {
+            border-color: var(--accent);
+            background: rgba(99, 102, 241, 0.05);
+        }
+        .upload-section h3 {
+            font-size: 16px;
+            margin-bottom: 8px;
+        }
+        .upload-section p {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+        }
+        .upload-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--accent);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 10px;
+            border: none;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+        }
+        .upload-btn:hover {
+            background: #4f46e5;
+            transform: translateY(-1px);
+        }
+        .file-inputs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 16px;
+        }
+        .file-input-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+        .file-input-group label {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+        input[type="file"] {
+            display: none;
+        }
+        .file-tag {
+            font-size: 11px;
+            padding: 4px 10px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .file-tag:hover { border-color: var(--accent); color: var(--text); }
+        .file-tag.loaded { background: rgba(34, 197, 94, 0.1); border-color: var(--green); color: var(--green); }
+
+        /* ── Footer ───────────────────────────────────────────────────── */
+        .footer {
+            text-align: center;
+            padding: 24px 40px;
+            font-size: 12px;
+            color: var(--text-muted);
+            border-top: 1px solid var(--border);
+        }
+
+        /* ── Responsive ───────────────────────────────────────────────── */
+        @media (max-width: 900px) {
+            .chart-grid { grid-template-columns: 1fr; }
+            .main { padding: 20px; }
+            .header { padding: 20px; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="header">
+    <div class="header-inner">
+        <div>
+            <h1>🚕 Urban Taxi Demand Dashboard</h1>
+            <span class="subtitle">NYC TLC Trip Records — Yellow & Green Taxi Analysis</span>
+        </div>
+        <div class="header-right">
+            <span class="data-status">Live Data</span>
+            <span id="data-source-label">Sample Data</span>
+            <span class="badge">2024</span>
+        </div>
+    </div>
+</header>
+
+<main class="main">
+
+    <!-- CSV Upload -->
+    <div class="upload-section" id="upload-section">
+        <h3>📂 Load Your Pipeline Data</h3>
+        <p>Upload the CSV files generated by <code>05_dashboard_export.ipynb</code> to populate the dashboard with your real data.<br>
+        Or explore the sample data below.</p>
+        <div class="file-inputs">
+            <div class="file-input-group">
+                <label class="file-tag" id="tag-hourly" onclick="document.getElementById('file-hourly').click()">demand_hourly.csv</label>
+                <input type="file" id="file-hourly" accept=".csv" onchange="loadCSV(this, 'hourly')">
+            </div>
+            <div class="file-input-group">
+                <label class="file-tag" id="tag-daily" onclick="document.getElementById('file-daily').click()">demand_daily.csv</label>
+                <input type="file" id="file-daily" accept=".csv" onchange="loadCSV(this, 'daily')">
+            </div>
+            <div class="file-input-group">
+                <label class="file-tag" id="tag-zone" onclick="document.getElementById('file-zone').click()">demand_zone.csv</label>
+                <input type="file" id="file-zone" accept=".csv" onchange="loadCSV(this, 'zone')">
+            </div>
+            <div class="file-input-group">
+                <label class="file-tag" id="tag-monthly" onclick="document.getElementById('file-monthly').click()">demand_monthly.csv</label>
+                <input type="file" id="file-monthly" accept=".csv" onchange="loadCSV(this, 'monthly')">
+            </div>
+            <div class="file-input-group">
+                <label class="file-tag" id="tag-stats" onclick="document.getElementById('file-stats').click()">stats_summary.csv</label>
+                <input type="file" id="file-stats" accept=".csv" onchange="loadCSV(this, 'stats')">
+            </div>
+        </div>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="kpi-label">Total Trips</div>
+            <div class="kpi-value" id="kpi-total-trips">18.4M</div>
+            <div class="kpi-sub">Jan – Jun 2024</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-label">Avg Daily Demand</div>
+            <div class="kpi-value" id="kpi-avg-daily">101,099</div>
+            <div class="kpi-sub">trips / day</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-label">Peak Hour</div>
+            <div class="kpi-value" id="kpi-peak-hour">18:00</div>
+            <div class="kpi-sub">Evening rush</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-label">Avg Trip Distance</div>
+            <div class="kpi-value" id="kpi-avg-dist">3.2 mi</div>
+            <div class="kpi-sub">after cleaning</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-label">Avg Fare</div>
+            <div class="kpi-value" id="kpi-avg-fare">$15.80</div>
+            <div class="kpi-sub">base fare</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-label">Top Zone</div>
+            <div class="kpi-value" id="kpi-top-zone">#236</div>
+            <div class="kpi-sub">Upper East Side N</div>
+        </div>
+    </div>
+
+    <!-- Charts Row 1 -->
+    <div class="chart-grid">
+        <div class="chart-card full-width">
+            <h3>🕐 Hourly Demand Pattern</h3>
+            <div class="chart-subtitle">Average trips per hour across all days</div>
+            <div class="chart-wrapper tall">
+                <canvas id="chart-hourly"></canvas>
+            </div>
+        </div>
+
+        <div class="chart-card">
+            <h3>📆 Monthly Trip Volume</h3>
+            <div class="chart-subtitle">Total trips per month</div>
+            <div class="chart-wrapper">
+                <canvas id="chart-monthly"></canvas>
+            </div>
+        </div>
+
+        <div class="chart-card">
+            <h3>📍 Top 10 Pickup Zones</h3>
+            <div class="chart-subtitle">Zones ranked by trip count</div>
+            <div class="chart-wrapper">
+                <canvas id="chart-zones"></canvas>
+            </div>
+        </div>
+
+        <div class="chart-card">
+            <h3>📅 Day-of-Week Demand</h3>
+            <div class="chart-subtitle">Average daily trips by weekday</div>
+            <div class="chart-wrapper">
+                <canvas id="chart-weekly"></canvas>
+            </div>
+        </div>
+
+        <div class="chart-card">
+            <h3>💰 Revenue Trend</h3>
+            <div class="chart-subtitle">Total revenue per month</div>
+            <div class="chart-wrapper">
+                <canvas id="chart-revenue"></canvas>
+            </div>
+        </div>
+
+        <div class="chart-card full-width">
+            <h3>📈 Daily Demand Time Series</h3>
+            <div class="chart-subtitle">Trips per day with 7-day rolling average</div>
+            <div class="chart-wrapper tall">
+                <canvas id="chart-daily"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats Table -->
+    <div class="table-card">
+        <h3>📊 Statistical Summary</h3>
+        <table id="stats-table">
+            <thead>
+                <tr>
+                    <th>Feature</th>
+                    <th>Mean</th>
+                    <th>Median</th>
+                    <th>Std Dev</th>
+                    <th>Skewness</th>
+                    <th>Kurtosis</th>
+                    <th>Best Fit</th>
+                    <th>KS p-value</th>
+                </tr>
+            </thead>
+            <tbody id="stats-tbody">
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Top Zones Table -->
+    <div class="table-card" style="margin-top: 20px;">
+        <h3>📍 Top 15 Pickup Zones</h3>
+        <table id="zones-table">
+            <thead>
+                <tr>
+                    <th>Rank</th>
+                    <th>Zone ID</th>
+                    <th>Trip Count</th>
+                    <th>Avg Distance</th>
+                    <th>Avg Fare</th>
+                    <th>Total Revenue</th>
+                </tr>
+            </thead>
+            <tbody id="zones-tbody">
+            </tbody>
+        </table>
+    </div>
+</main>
+
+<footer class="footer">
+    Urban Taxi Demand Pattern Analysis — Shivaansh Pandey & Prantik · Mentor: Navneet Nautiyal · NYC TLC Trip Records 2024
+</footer>
+
+<script>
+// ── Sample Data (replaced when real CSVs are uploaded) ──────────────────────
+
+const SAMPLE = {
+    hourly: [
+        12400,9800,6200,4100,3200,4800,14200,28600,32100,27500,
+        25800,27200,29100,30500,31200,33800,36200,38500,37800,35200,
+        31600,27800,22100,16900
+    ],
+    monthly: {
+        labels: ['Jan','Feb','Mar','Apr','May','Jun'],
+        values: [2850000,2720000,3120000,3180000,3280000,3250000],
+        revenue: [48200000,46100000,52800000,53900000,55500000,55100000],
+    },
+    zones: [
+        {id:236, name:'Upper East Side N', trips:820000, dist:2.1, fare:12.50, rev:10250000},
+        {id:237, name:'Upper East Side S', trips:780000, dist:2.3, fare:13.20, rev:10296000},
+        {id:161, name:'Midtown Center', trips:750000, dist:1.8, fare:11.80, rev:8850000},
+        {id:162, name:'Midtown East', trips:720000, dist:2.0, fare:12.10, rev:8712000},
+        {id:230, name:'Times Sq/Theatre', trips:690000, dist:2.5, fare:14.20, rev:9798000},
+        {id:186, name:'Penn Station', trips:650000, dist:3.1, fare:15.60, rev:10140000},
+        {id:170, name:'Murray Hill', trips:620000, dist:2.4, fare:13.50, rev:8370000},
+        {id:234, name:'Union Sq', trips:580000, dist:2.2, fare:12.80, rev:7424000},
+        {id:48,  name:'Clinton East', trips:540000, dist:2.6, fare:13.90, rev:7506000},
+        {id:142, name:'Lincoln Sq East', trips:510000, dist:2.8, fare:14.50, rev:7395000},
+        {id:239, name:'Upper West Side N', trips:490000, dist:2.7, fare:14.10, rev:6909000},
+        {id:263, name:'Yorkville West', trips:470000, dist:2.0, fare:12.20, rev:5734000},
+        {id:141, name:'Lenox Hill West', trips:450000, dist:2.3, fare:13.00, rev:5850000},
+        {id:79,  name:'East Village', trips:430000, dist:2.1, fare:12.60, rev:5418000},
+        {id:164, name:'Midtown South', trips:410000, dist:1.9, fare:11.90, rev:4879000},
+    ],
+    weekly: {
+        labels: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],
+        values: [108000,112000,115000,118000,121000,105000,82000]
+    },
+    daily: null,  // generated below
+    stats: [
+        {feature:'trip_distance', mean:3.21, median:2.40, std:2.88, skew:4.12, kurtosis:28.4, best:'lognormal', pvalue:0.087},
+        {feature:'trip_duration_min', mean:15.3, median:12.1, std:10.2, skew:2.85, kurtosis:14.6, best:'lognormal', pvalue:0.062},
+        {feature:'fare_amount', mean:15.80, median:12.50, std:11.40, skew:3.24, kurtosis:18.9, best:'lognormal', pvalue:0.041},
+        {feature:'total_amount', mean:22.40, median:18.20, std:15.60, skew:2.98, kurtosis:15.2, best:'lognormal', pvalue:0.055},
+        {feature:'speed_mph', mean:12.8, median:11.5, std:6.4, skew:1.52, kurtosis:4.8, best:'normal', pvalue:0.112},
+    ]
+};
+
+// Generate sample daily data (182 days Jan-Jun)
+(function(){
+    const days = [];
+    const base = new Date(2024, 0, 1);
+    for(let i=0; i<182; i++){
+        const d = new Date(base);
+        d.setDate(d.getDate()+i);
+        const dow = d.getDay();
+        const baseVal = dow===0?82000:dow===6?105000:108000+dow*3000;
+        const noise = (Math.random()-0.5)*15000;
+        days.push({
+            date: d.toISOString().slice(0,10),
+            trips: Math.round(baseVal+noise)
+        });
+    }
+    SAMPLE.daily = days;
+})();
+
+
+// ── Chart.js Global Config ──────────────────────────────────────────────────
+Chart.defaults.color = '#94a3b8';
+Chart.defaults.borderColor = '#1e293b';
+Chart.defaults.font.family = "'Inter', sans-serif";
+Chart.defaults.plugins.legend.labels.usePointStyle = true;
+Chart.defaults.plugins.legend.labels.pointStyleWidth = 10;
+Chart.defaults.animation.duration = 800;
+
+const charts = {};
+
+// ── Render Functions ────────────────────────────────────────────────────────
+
+function renderHourlyChart(data) {
+    const ctx = document.getElementById('chart-hourly');
+    if(charts.hourly) charts.hourly.destroy();
+
+    const gradient = ctx.getContext('2d').createLinearGradient(0, 0, 0, 360);
+    gradient.addColorStop(0, 'rgba(99, 102, 241, 0.35)');
+    gradient.addColorStop(1, 'rgba(99, 102, 241, 0.0)');
+
+    charts.hourly = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: Array.from({length:24}, (_, i) => `${i.toString().padStart(2,'0')}:00`),
+            datasets: [{
+                label: 'Avg Trips',
+                data: data,
+                fill: true,
+                backgroundColor: gradient,
+                borderColor: '#6366f1',
+                borderWidth: 2.5,
+                pointRadius: 4,
+                pointBackgroundColor: '#6366f1',
+                pointBorderColor: '#1e1b4b',
+                pointBorderWidth: 2,
+                pointHoverRadius: 7,
+                tension: 0.4,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: '#1e293b',
+                    titleColor: '#f1f5f9',
+                    bodyColor: '#94a3b8',
+                    borderColor: '#334155',
+                    borderWidth: 1,
+                    padding: 12,
+                    cornerRadius: 10,
+                    callbacks: {
+                        label: ctx => `${ctx.parsed.y.toLocaleString()} trips`
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: { color: 'rgba(148,163,184,0.06)' },
+                    ticks: { callback: v => (v/1000)+'k' }
+                },
+                x: { grid: { display: false } }
+            }
+        }
+    });
+}
+
+function renderMonthlyChart(labels, values) {
+    const ctx = document.getElementById('chart-monthly');
+    if(charts.monthly) charts.monthly.destroy();
+
+    const colors = ['#6366f1','#818cf8','#a5b4fc','#6366f1','#818cf8','#a5b4fc',
+                    '#6366f1','#818cf8','#a5b4fc','#6366f1','#818cf8','#a5b4fc'];
+
+    charts.monthly = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Trips',
+                data: values,
+                backgroundColor: colors.slice(0, labels.length),
+                borderRadius: 8,
+                borderSkipped: false,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: '#1e293b',
+                    callbacks: { label: ctx => `${(ctx.parsed.y/1e6).toFixed(2)}M trips` }
+                }
+            },
+            scales: {
+                y: { beginAtZero: true, grid: { color: 'rgba(148,163,184,0.06)' },
+                     ticks: { callback: v => (v/1e6).toFixed(1)+'M' } },
+                x: { grid: { display: false } }
+            }
+        }
+    });
+}
+
+function renderZonesChart(zones) {
+    const ctx = document.getElementById('chart-zones');
+    if(charts.zones) charts.zones.destroy();
+    const top10 = zones.slice(0, 10);
+
+    charts.zones = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: top10.map(z => `#${z.id}`),
+            datasets: [{
+                label: 'Trips',
+                data: top10.map(z => z.trips),
+                backgroundColor: [
+                    '#6366f1','#818cf8','#a5b4fc','#22c55e','#4ade80',
+                    '#f59e0b','#fbbf24','#38bdf8','#f43f5e','#8b5cf6'
+                ],
+                borderRadius: 6,
+                borderSkipped: false,
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: '#1e293b',
+                    callbacks: {
+                        title: items => {
+                            const z = top10[items[0].dataIndex];
+                            return `Zone ${z.id} — ${z.name}`;
+                        },
+                        label: ctx => `${ctx.parsed.x.toLocaleString()} trips`
+                    }
+                }
+            },
+            scales: {
+                x: { beginAtZero: true, grid: { color: 'rgba(148,163,184,0.06)' },
+                     ticks: { callback: v => (v/1e3)+'k' } },
+                y: { grid: { display: false } }
+            }
+        }
+    });
+}
+
+function renderWeeklyChart(labels, values) {
+    const ctx = document.getElementById('chart-weekly');
+    if(charts.weekly) charts.weekly.destroy();
+
+    charts.weekly = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Avg Trips',
+                data: values,
+                backgroundColor: ['#f43f5e','#f59e0b','#22c55e','#38bdf8','#6366f1','#8b5cf6','#ec4899'],
+                borderRadius: 8,
+                borderSkipped: false,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false },
+                tooltip: { backgroundColor: '#1e293b',
+                    callbacks: { label: ctx => `${ctx.parsed.y.toLocaleString()} trips` } }
+            },
+            scales: {
+                y: { beginAtZero: true, grid: { color: 'rgba(148,163,184,0.06)' },
+                     ticks: { callback: v => (v/1e3)+'k' } },
+                x: { grid: { display: false } }
+            }
+        }
+    });
+}
+
+function renderRevenueChart(labels, revenue) {
+    const ctx = document.getElementById('chart-revenue');
+    if(charts.revenue) charts.revenue.destroy();
+
+    const gradient = ctx.getContext('2d').createLinearGradient(0, 0, 0, 300);
+    gradient.addColorStop(0, 'rgba(34, 197, 94, 0.3)');
+    gradient.addColorStop(1, 'rgba(34, 197, 94, 0.0)');
+
+    charts.revenue = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Revenue',
+                data: revenue,
+                fill: true,
+                backgroundColor: gradient,
+                borderColor: '#22c55e',
+                borderWidth: 2.5,
+                pointRadius: 5,
+                pointBackgroundColor: '#22c55e',
+                tension: 0.4,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false },
+                tooltip: { backgroundColor: '#1e293b',
+                    callbacks: { label: ctx => `$${(ctx.parsed.y/1e6).toFixed(1)}M` } }
+            },
+            scales: {
+                y: { beginAtZero: false, grid: { color: 'rgba(148,163,184,0.06)' },
+                     ticks: { callback: v => '$'+(v/1e6).toFixed(0)+'M' } },
+                x: { grid: { display: false } }
+            }
+        }
+    });
+}
+
+function renderDailyChart(dailyData) {
+    const ctx = document.getElementById('chart-daily');
+    if(charts.daily) charts.daily.destroy();
+
+    // 7-day rolling average
+    const rolling = [];
+    for(let i=0; i<dailyData.length; i++){
+        if(i<6) { rolling.push(null); continue; }
+        let sum = 0;
+        for(let j=i-6; j<=i; j++) sum += dailyData[j].trips;
+        rolling.push(Math.round(sum/7));
+    }
+
+    charts.daily = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: dailyData.map(d => d.date),
+            datasets: [
+                {
+                    label: 'Daily Trips',
+                    data: dailyData.map(d => d.trips),
+                    borderColor: 'rgba(56, 189, 248, 0.4)',
+                    borderWidth: 1,
+                    pointRadius: 0,
+                    fill: false,
+                },
+                {
+                    label: '7-Day Rolling Avg',
+                    data: rolling,
+                    borderColor: '#f43f5e',
+                    borderWidth: 2.5,
+                    pointRadius: 0,
+                    fill: false,
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { position: 'top' },
+                tooltip: {
+                    backgroundColor: '#1e293b',
+                    callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y?.toLocaleString() ?? '-'} trips` }
+                }
+            },
+            scales: {
+                y: { beginAtZero: false, grid: { color: 'rgba(148,163,184,0.06)' },
+                     ticks: { callback: v => (v/1e3)+'k' } },
+                x: {
+                    grid: { display: false },
+                    ticks: {
+                        maxTicksLimit: 12,
+                        callback: function(v, i) {
+                            const d = this.getLabelForValue(v);
+                            return d ? d.slice(5) : '';
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function renderStatsTable(statsData) {
+    const tbody = document.getElementById('stats-tbody');
+    tbody.innerHTML = statsData.map(s => `
+        <tr>
+            <td><strong>${s.feature}</strong></td>
+            <td>${Number(s.mean).toFixed(2)}</td>
+            <td>${Number(s.median).toFixed(2)}</td>
+            <td>${Number(s.std).toFixed(2)}</td>
+            <td>${Number(s.skew).toFixed(3)}</td>
+            <td>${Number(s.kurtosis).toFixed(2)}</td>
+            <td><span class="badge" style="background:${s.best==='lognormal'?'#8b5cf6':s.best==='normal'?'#22c55e':'#f59e0b'}">${s.best || s.best_fit_dist || '-'}</span></td>
+            <td>${Number(s.pvalue || s.ks_pvalue || 0).toFixed(4)}</td>
+        </tr>
+    `).join('');
+}
+
+function renderZonesTable(zones) {
+    const tbody = document.getElementById('zones-tbody');
+    tbody.innerHTML = zones.slice(0, 15).map((z, i) => `
+        <tr>
+            <td><span class="zone-rank">${i+1}</span></td>
+            <td><strong>#${z.id}</strong> ${z.name ? '— '+z.name : ''}</td>
+            <td>${Number(z.trips).toLocaleString()}</td>
+            <td>${Number(z.dist).toFixed(1)} mi</td>
+            <td>$${Number(z.fare).toFixed(2)}</td>
+            <td>$${Number(z.rev).toLocaleString()}</td>
+        </tr>
+    `).join('');
+}
+
+
+// ── CSV Parsing ─────────────────────────────────────────────────────────────
+
+function parseCSV(text) {
+    const lines = text.trim().split('\n');
+    const headers = lines[0].split(',').map(h => h.trim());
+    const rows = [];
+    for(let i=1; i<lines.length; i++){
+        const vals = lines[i].split(',');
+        const obj = {};
+        headers.forEach((h, j) => obj[h] = vals[j]?.trim());
+        rows.push(obj);
+    }
+    return { headers, rows };
+}
+
+function loadCSV(input, type) {
+    const file = input.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const { rows } = parseCSV(e.target.result);
+        document.getElementById(`tag-${type}`).classList.add('loaded');
+        document.getElementById('data-source-label').textContent = 'Pipeline Data';
+        applyData(type, rows);
+    };
+    reader.readAsText(file);
+}
+
+function applyData(type, rows) {
+    if(type === 'hourly') {
+        // Group by hour and average
+        const hourSum = new Array(24).fill(0);
+        const hourCount = new Array(24).fill(0);
+        rows.forEach(r => {
+            const h = parseInt(r.pickup_hour || r.hour);
+            if(!isNaN(h)) {
+                hourSum[h] += parseInt(r.trip_count || 0);
+                hourCount[h]++;
+            }
+        });
+        const hourAvg = hourSum.map((s,i) => hourCount[i] ? Math.round(s/hourCount[i]) : 0);
+        renderHourlyChart(hourAvg);
+
+        // Update peak hour KPI
+        const peak = hourAvg.indexOf(Math.max(...hourAvg));
+        document.getElementById('kpi-peak-hour').textContent = `${peak.toString().padStart(2,'0')}:00`;
+    }
+    else if(type === 'daily') {
+        const dailyData = rows.map(r => ({
+            date: r.date,
+            trips: parseInt(r.trip_count || 0)
+        })).filter(d => d.trips > 0);
+        renderDailyChart(dailyData);
+
+        // Update KPIs
+        const totalTrips = dailyData.reduce((s,d)=>s+d.trips, 0);
+        const avgDaily = Math.round(totalTrips / dailyData.length);
+        document.getElementById('kpi-total-trips').textContent =
+            totalTrips > 1e6 ? (totalTrips/1e6).toFixed(1)+'M' : totalTrips.toLocaleString();
+        document.getElementById('kpi-avg-daily').textContent = avgDaily.toLocaleString();
+
+        if(rows[0]?.avg_distance) {
+            const avgDist = rows.reduce((s,r)=>s+parseFloat(r.avg_distance||0),0)/rows.length;
+            document.getElementById('kpi-avg-dist').textContent = avgDist.toFixed(1)+' mi';
+        }
+        if(rows[0]?.avg_fare) {
+            const avgFare = rows.reduce((s,r)=>s+parseFloat(r.avg_fare||0),0)/rows.length;
+            document.getElementById('kpi-avg-fare').textContent = '$'+avgFare.toFixed(2);
+        }
+    }
+    else if(type === 'zone') {
+        const zones = rows.map(r => ({
+            id: parseInt(r.PULocationID || r.zone_id || 0),
+            name: r.zone || '',
+            trips: parseInt(r.trip_count || 0),
+            dist: parseFloat(r.avg_distance || 0),
+            fare: parseFloat(r.avg_fare || 0),
+            rev: parseFloat(r.total_revenue || 0),
+        })).sort((a,b) => b.trips - a.trips);
+        renderZonesChart(zones);
+        renderZonesTable(zones);
+
+        if(zones.length > 0) {
+            document.getElementById('kpi-top-zone').textContent = `#${zones[0].id}`;
+            document.querySelector('#kpi-top-zone + .kpi-sub').textContent = zones[0].name || 'Top Zone';
+        }
+    }
+    else if(type === 'monthly') {
+        const labels = rows.map(r => r.month_name || `M${r.pickup_month}`);
+        const values = rows.map(r => parseInt(r.trip_count || 0));
+        const revenue = rows.map(r => parseFloat(r.total_revenue || 0));
+        renderMonthlyChart(labels, values);
+        if(revenue.some(r => r > 0)) renderRevenueChart(labels, revenue);
+    }
+    else if(type === 'stats') {
+        const statsData = rows.map(r => ({
+            feature: r.feature,
+            mean: r.mean,
+            median: r.median,
+            std: r.std,
+            skew: r.skewness || r.skew,
+            kurtosis: r.kurtosis,
+            best: r.best_fit_dist,
+            pvalue: r.ks_pvalue,
+        }));
+        renderStatsTable(statsData);
+    }
+}
+
+
+// ── Initial Render with Sample Data ─────────────────────────────────────────
+
+renderHourlyChart(SAMPLE.hourly);
+renderMonthlyChart(SAMPLE.monthly.labels, SAMPLE.monthly.values);
+renderZonesChart(SAMPLE.zones);
+renderWeeklyChart(SAMPLE.weekly.labels, SAMPLE.weekly.values);
+renderRevenueChart(SAMPLE.monthly.labels, SAMPLE.monthly.revenue);
+renderDailyChart(SAMPLE.daily);
+renderStatsTable(SAMPLE.stats);
+renderZonesTable(SAMPLE.zones);
+
+</script>
+</body>
+</html>
