@@ -1,0 +1,19 @@
+# Node
+node_modules/
+dist/
+.DS_Store
+
+# Data (Crucial to exclude 2.7GB Parquet files)
+ml_model_training/data/raw/
+*.parquet
+*.png
+*.jpg
+*.jpeg
+
+# Models & Artifacts (Optional, but usually we don't push massive .pkl if they can be retrained)
+# ml_model_training/outputs/models/*.pkl
+
+# Environment
+.env
+.idea/
+.vscode/
